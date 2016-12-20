@@ -61,11 +61,12 @@ function deploy_challenge {
         done <<< "$record_params"
     done <<< "$records_list"
     IFS=$OLDIFS
-    ((num++))
 
     # add challenge records to post data
     local count=0
     while (( "$#" >= 3 )); do 
+        ((num++))
+        
         # DOMAIN
         #   The domain name (CN or subject alternative name) being validated.
         DOMAIN="${1}"; shift 
@@ -162,7 +163,6 @@ function clean_challenge {
         done <<< "$record_params"
     done <<< "$records_list"
     IFS=$OLDIFS
-    ((num++))
     
     local command="/usr/bin/curl -sv --request POST $SETHOSTS_URI $POSTDATA 2>&1 > /dev/null"
     eval $command
