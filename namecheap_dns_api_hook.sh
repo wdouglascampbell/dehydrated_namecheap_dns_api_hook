@@ -82,9 +82,10 @@ function deploy_challenge {
         #   be found in the $TOKEN_FILENAME file.
         TOKEN_VALUE[$count]="${1}"; shift 
         
-        SUB[$count]=`sed -E "s/$SLD.$TLD//" <<< "${DOMAIN}"`
+        SUB[$count]=`sed -E "s/.?$SLD.$TLD//" <<< "${DOMAIN}"`
+        CHALLENGE_HOSTNAME=`sed -E "s/.$//" <<< "${SUB[$count]}"`
         
-        POSTDATA=$POSTDATA" --data-urlencode 'hostname$num=_acme-challenge.${SUB[$count]}'"
+        POSTDATA=$POSTDATA" --data-urlencode 'hostname$num=_acme-challenge.${CHALLENGE_HOSTNAME}'"
         POSTDATA=$POSTDATA" --data-urlencode 'recordtype$num=TXT'"
         POSTDATA=$POSTDATA" --data-urlencode 'address$num=${TOKEN_VALUE[$count]}'"
         POSTDATA=$POSTDATA" --data-urlencode 'ttl$num=60'"
