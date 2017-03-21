@@ -231,5 +231,9 @@ function unchanged_cert {
     #   The path of the file containing the intermediate certificate(s).
 }
 
+function exit_hook {
+    # This hook is called once at the end
+}
+
 HANDLER=$1; shift; $HANDLER $@
 exit 0
