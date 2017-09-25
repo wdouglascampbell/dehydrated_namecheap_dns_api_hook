@@ -1,0 +1,30 @@
+########################################################
+# This is the main config file for the Dehydrated      #
+# Namecheap DNS 01 Hook script                         #
+#                                                      #
+# Default values of this config are in comments        #
+########################################################
+
+# Namecheap API Credentials
+#apiusr=
+#apikey=
+
+# Debugging (yes/no)
+#DEBUG=no
+
+# Configure notifications
+#SENDER="sender@example.com"
+#RECIPIENT="recipient@example.com"
+
+# Configure certificate and key locations for deployment
+#DEPLOYED_CERTDIR=/etc/pki/tls/certs
+#DEPLOYED_KEYDIR=/etc/pki/tls/private
+
+# Email Sending Method Options
+#  + SENDMAIL (default)
+#  + SMTP
+#MAIL_METHOD=SENDMAIL
+
+# SMTP options 
+#SMTP_DOMAIN=localhost
+#SMTP_SERVER=

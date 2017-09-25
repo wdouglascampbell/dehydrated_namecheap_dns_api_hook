@@ -1,28 +1,5 @@
 #!/usr/bin/env bash
 
-# Namecheap API Credentials
-apiusr=
-apikey=
-cliip=
-
-function send_notification {
-    local DOMAIN="${1}" TODAYS_DATE=`date` SENDER="sender@example.com" RECIPIENT="recipient@example.com"
-
-    # send notification email
-    cat << EOF | /usr/sbin/sendmail -t -f $SENDER
-Content-Type:text/html;charset='UTF-8'
-Content-Transfer-Encoding:7bit
-From:SSL Certificate Renewal Script<$SENDER>
-To:<$RECIPIENT>
-Subject: New Certificate Deployed - $TODAYS_DATE
-
-<html>
-<p>A new certificate for the domain, <b>${DOMAIN}</b>, has been deployed.</p>
-<p>Please confirm certificate is working as expected.</p>
-</html>
-EOF
-}
-
 function deploy_challenge {
     local FIRSTDOMAIN="${1}"
     local SLD=`sed -E 's/(.*\.)*([^.]+)\..*/\2/' <<< "${FIRSTDOMAIN}"`
@@ -34,7 +11,10 @@ function deploy_challenge {
     local num=0
     
     # get list of current records for domain
-    local records_list=`/usr/bin/curl -s "https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.getHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD" | sed -En 's/<host (.*)/\1/p'`
+    local records_list=`$CURL "https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.getHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD" | sed -En 's/<host (.*)/\1/p'`
+
+    # create records_backup directory if it doesn't yet exist
+    mkdir -p records_backup
 
     # parse and store current records
     #    Namecheap's setHosts method requires ALL records to be posted.  Therefore, the required information for recreating ALL records
@@ -94,7 +74,7 @@ function deploy_challenge {
     done
     local items=$count
     
-    local command="/usr/bin/curl -sv --request POST $SETHOSTS_URI $POSTDATA 2>&1 > /dev/null"
+    local command="$CURL --request POST $SETHOSTS_URI $POSTDATA 2>&1 > /dev/null"
     eval $command
     
     # wait up to 30 minutes for DNS updates to be provisioned (check at 15 second intervals)
@@ -134,7 +114,7 @@ function clean_challenge {
     local num=0
     
     # get list of current records for domain
-    local records_list=`/usr/bin/curl -s "https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.getHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD" | sed -En 's/<host (.*)/\1/p'`
+    local records_list=`$CURL "https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.getHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD" | sed -En 's/<host (.*)/\1/p'`
 
     # remove challenge records from list
     records_list=`sed '/acme-challenge/d' <<< "$records_list"`
@@ -165,7 +145,7 @@ function clean_challenge {
     done <<< "$records_list"
     IFS=$OLDIFS
     
-    local command="/usr/bin/curl -sv --request POST $SETHOSTS_URI $POSTDATA 2>&1 > /dev/null"
+    local command="$CURL --request POST $SETHOSTS_URI $POSTDATA 2>&1 > /dev/null"
     eval $command
 }
 
@@ -193,21 +173,25 @@ function deploy_cert {
     
     echo "Deploying certificate for ${DOMAIN}..."
     # copy new certificate to /etc/pki/tls/certs folder
-    cp "${CERTFILE}" /etc/pki/tls/certs/$DOMAIN.crt
+    cp "${CERTFILE}" "${DEPLOYED_CERTDIR}/${DOMAIN}.crt"
     echo " + certificate copied"
 
     # copy new key to /etc/pki/tls/private folder
-    cp "${KEYFILE}" /etc/pki/tls/private/$DOMAIN.key
+    cp "${KEYFILE}" "${DEPLOYED_KEYDIR}/${DOMAIN}.key"
     echo " + key copied"
 
     # copy new chain file which contains the intermediate certificate(s)
-    cp "${CHAINFILE}" /etc/pki/tls/certs/letsencrypt-intermediate-certificates.pem
+    cp "${CHAINFILE}" "${DEPLOYED_CERTDIR}/letsencrypt-intermediate-certificates.pem"
     echo " + intermediate certificate chain copied"
 
-    # restart Apache
-    echo " + Reloading Apache configuration"
-    systemctl reload httpd.service
-    
+    # combine certificate and chain file (used by Nginx)
+    cat "${CERTFILE}" "${CHAINFILE}" > "${DEPLOYED_CERTDIR}/${DOMAIN}-chain.crt"
+    echo " + combine certificate and intermediate certificate chain"
+
+    # reload services
+    echo " + Reloading Services"
+    "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/reload_services.sh"
+
     # send email notification
     send_notification $DOMAIN
 }
@@ -232,9 +216,141 @@ function unchanged_cert {
     #   The path of the file containing the intermediate certificate(s).
 }
 
-function exit_hook {
-    # This hook is called once at the end
+function invalid_challenge() {
+    local DOMAIN="${1}" RESPONSE="${2}"
+
+    # This hook is called if the challenge response has failed, so domain
+    # owners can be aware and act accordingly.
+    #
+    # Parameters:
+    # - DOMAIN
+    #   The primary domain name, i.e. the certificate common
+    #   name (CN).
+    # - RESPONSE
+    #   The response that the verification server returned
 }
 
-HANDLER=$1; shift; $HANDLER $@
+function request_failure() {
+    local STATUSCODE="${1}" REASON="${2}" REQTYPE="${3}"
+
+    # This hook is called when an HTTP request fails (e.g., when the ACME
+    # server is busy, returns an error, etc). It will be called upon any
+    # response code that does not start with '2'. Useful to alert admins
+    # about problems with requests.
+    #
+    # Parameters:
+    # - STATUSCODE
+    #   The HTML status code that originated the error.
+    # - REASON
+    #   The specified reason for the error.
+    # - REQTYPE
+    #   The kind of request that was made (GET, POST...)
+}
+
+function startup_hook() {
+  # This hook is called before the cron command to do some initial tasks
+  # (e.g. starting a webserver).
+
+  :
+}
+
+function exit_hook() {
+  # This hook is called at the end of the cron command and can be used to
+  # do some final (cleanup or other) tasks.
+
+  :
+}
+
+# Setup default config values, load configuration file
+function load_config() {
+    # Default values
+    apiusr=
+    apikey=
+    DEBUG=no
+    SENDER="sender@example.com"
+    RECIPIENT="recipient@example.com"
+    DEPLOYED_CERTDIR=/etc/pki/tls/certs
+    DEPLOYED_KEYDIR=/etc/pki/tls/private
+    MAIL_METHOD=SENDMAIL
+    SMTP_DOMAIN=localhost
+    SMTP_SERVER=
+
+    # Check if config file exists
+    if [[ ! -f "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/config" ]]; then
+        echo "#" >&2
+        echo "# !! WARNING !! No main config file found, using default config!" >&2
+        echo "#" >&2
+    else
+        . "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/config"
+    fi
+}
+
+function send_notification {
+    local DOMAIN="${1}" TODAYS_DATE=`date`
+
+    # set message content
+    MSG_CONTENT=$(cat << EOF
+Content-Type:text/html;charset='UTF-8'
+Content-Transfer-Encoding:7bit
+From:SSL Certificate Renewal Script<$SENDER>
+To:<$RECIPIENT>
+Subject: New Certificate Deployed - $TODAYS_DATE
+
+<html>
+<p>A new certificate for the domain, <b>${DOMAIN}</b>, has been deployed.</p>
+<p>Please confirm certificate is working as expected.</p>
+</html>
+EOF
+)
+IFS='
+'
+
+    if [ "${MAIL_METHOD}" == "SENDMAIL" ]; then
+        # send notification email
+        cat << EOF | /usr/sbin/sendmail -t -f $SENDER
+$MSG_CONTENT
+EOF
+    else
+        # prepare notification email message
+        a=$(cat << EOF
+HELO $SMTP_DOMAIN
+MAIL FROM: <$SENDER>
+RCPT TO: <$RECIPIENT>
+DATA
+$MSG_CONTENT
+.
+QUIT
+.
+EOF
+)
+IFS='
+'
+
+        # send notification email
+        exec 1<>/dev/tcp/$SMTP_SERVER/25
+        declare -a b=($a)
+        for x in "${b[@]}"
+        do
+            echo $x
+            sleep .1
+        done
+    fi
+}
+
+# load config values
+load_config
+
+if [[ "${DEBUG}" == "yes" ]]; then
+    CURL="/usr/bin/curl -sv"
+else
+    CURL="/usr/bin/curl -s"
+fi
+
+# get this client's ip address
+cliip=`$CURL -s http://ipinfo.io/ip`
+
+HANDLER="$1"; shift
+if [[ "${HANDLER}" =~ ^(deploy_challenge|clean_challenge|deploy_cert|unchanged_cert|invalid_challenge|request_failure|startup_hook|exit_hook)$ ]]; then
+  "$HANDLER" "$@"
+fi
 exit 0
