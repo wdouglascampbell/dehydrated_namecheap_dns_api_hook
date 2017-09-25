@@ -12,6 +12,9 @@
 # Debugging (yes/no)
 #DEBUG=no
 
+# Records backup locaiton
+#RECORDS_BACKUP=${BASEDIR}/records_backup
+
 # Configure notifications
 #SENDER="sender@example.com"
 #RECIPIENT="recipient@example.com"

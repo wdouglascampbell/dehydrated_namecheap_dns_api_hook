@@ -13,18 +13,18 @@ function deploy_challenge {
     # get list of current records for domain
     local records_list=`$CURL "https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.getHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD" | sed -En 's/<host (.*)/\1/p'`
 
-    # create records_backup directory if it doesn't yet exist
-    mkdir -p records_backup
+    # create $RECORDS_BACKUP directory if it doesn't yet exist
+    mkdir -p $RECORDS_BACKUP
 
     # parse and store current records
     #    Namecheap's setHosts method requires ALL records to be posted.  Therefore, the required information for recreating ALL records
     #    is extracted.  In addition, to protect against unforeseen issues that may cause the setHosts method to err, this information is
-    #    stored in the records_backup directory allowing easy reference if they need to be restored manually.
+    #    stored in the $RECORDS_BACKUP directory allowing easy reference if they need to be restored manually.
     OLDIFS=$IFS
     while read -r current_record; do
         ((num++))
         # extract record attributes and create comma-separate string
-        record_params=`sed -E 's/^[^"]*"|"[^"]*$//g; s/"[^"]+"/,/g; s/ +/ /g' <<< "$current_record" | tee "records_backup/${FIRSTDOMAIN}_${num}_record.txt"`
+        record_params=`sed -E 's/^[^"]*"|"[^"]*$//g; s/"[^"]+"/,/g; s/ +/ /g' <<< "$current_record" | tee "${RECORDS_BACKUP}/${FIRSTDOMAIN}_${num}_record.txt"`
         while IFS=, read -r hostid hostname recordtype address mxpref ttl associatedapptitle friendlyname isactive isddnsenabled; do
             if [[ "$recordtype" = "MX" ]]; then
                 POSTDATA=$POSTDATA" --data-urlencode 'hostname$num=$hostname'"
@@ -122,12 +122,12 @@ function clean_challenge {
     # parse and store current records
     #    Namecheap's setHosts method requires ALL records to be posted.  Therefore, the required information for recreating ALL records
     #    is extracted.  In addition, to protect against unforeseen issues that may cause the setHosts method to err, this information is
-    #    stored in the records_backup directory allowing easy reference if they need to be restored manually.
+    #    stored in the $RECORDS_BACKUP allowing easy reference if they need to be restored manually.
     OLDIFS=$IFS
     while read -r current_record; do
         ((num++))
         # extract record attributes and create comma-separate string
-        record_params=`sed -E 's/^[^"]*"|"[^"]*$//g; s/"[^"]+"/,/g; s/ +/ /g' <<< "$current_record" | tee "records_backup/${FIRSTDOMAIN}_${num}_record.txt"`
+        record_params=`sed -E 's/^[^"]*"|"[^"]*$//g; s/"[^"]+"/,/g; s/ +/ /g' <<< "$current_record" | tee "${RECORDS_BACKUP}/${FIRSTDOMAIN}_${num}_record.txt"`
         while IFS=, read -r hostid hostname recordtype address mxpref ttl associatedapptitle friendlyname isactive isddnsenabled; do
             if [[ "$recordtype" = "MX" ]]; then
                 POSTDATA=$POSTDATA" --data-urlencode 'hostname$num=$hostname'"
@@ -267,6 +267,7 @@ function load_config() {
     apiusr=
     apikey=
     DEBUG=no
+    RECORDS_BACKUP=${BASEDIR}/records_backup
     SENDER="sender@example.com"
     RECIPIENT="recipient@example.com"
     DEPLOYED_CERTDIR=/etc/pki/tls/certs
