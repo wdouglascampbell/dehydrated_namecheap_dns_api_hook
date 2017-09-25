@@ -84,6 +84,7 @@ function deploy_challenge {
         until dig @8.8.8.8 txt "_acme-challenge.${SUB[$count]}$SLD.$TLD" | grep "${TOKEN_VALUE[$count]}" 2>&1 > /dev/null; do
             if [[ "$timer" -ge 1800 ]]; then
                 # time has exceeded 30 minutes
+                send_error $FIRSTDOMAIN
                 break
             else
                 echo " + DNS not propagated. Waiting 15s for record creation and replication... Total time elapsed has been $timer seconds."
@@ -283,6 +284,58 @@ function load_config() {
         echo "#" >&2
     else
         . "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/config"
+    fi
+}
+
+function send_error {
+    local DOMAIN="${1}" TODAYS_DATE=`date`
+
+    # set message content
+    MSG_CONTENT=$(cat << EOF
+Content-Type:text/html;charset='UTF-8'
+Content-Transfer-Encoding:7bit
+From:SSL Certificate Renewal Script<$SENDER>
+To:<$RECIPIENT>
+Subject: New Certificate Deployment Failed - $DOMAIN - $TODAYS_DATE
+
+<html>
+<p>A new certificate for the domain, <b>${FIRSTDOMAIN}</b>, has failed.</p>
+<p>DNS record did not propagate.  Unable to verify domain is yours.</p>
+</html>
+EOF
+)
+IFS='
+'
+
+    if [ "${MAIL_METHOD}" == "SENDMAIL" ]; then
+        # send notification email
+        cat << EOF | /usr/sbin/sendmail -t -f $SENDER
+$MSG_CONTENT
+EOF
+    else
+        # prepare notification email message
+        a=$(cat << EOF
+HELO $SMTP_DOMAIN
+MAIL FROM: <$SENDER>
+RCPT TO: <$RECIPIENT>
+DATA
+$MSG_CONTENT
+.
+QUIT
+.
+EOF
+)
+IFS='
+'
+
+        # send notification email
+        exec 1<>/dev/tcp/$SMTP_SERVER/25
+        declare -a b=($a)
+        for x in "${b[@]}"
+        do
+            echo $x
+            sleep .1
+        done
     fi
 }
 
