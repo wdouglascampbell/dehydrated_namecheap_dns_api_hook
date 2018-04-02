@@ -5,7 +5,7 @@
 
 # Apache
 #echo " + Reloading Apache configuration"
-#systemctl reload httpd.service
+#systemctl reload apache2.service
 
 # Nginx
 #echo " + Reloading Nginx configuration"
