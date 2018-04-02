@@ -5,13 +5,13 @@ function deploy_challenge {
     local SLD=`sed -E 's/(.*\.)*([^.]+)\..*/\2/' <<< "${FIRSTDOMAIN}"`
     local TLD=`sed -E 's/.*\.([^.]+)/\1/' <<< "${FIRSTDOMAIN}"`
 
-    local SETHOSTS_URI="'https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.setHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD'"
-    local POSTDATA=""
+    local POSTDATA=" --data-urlencode 'apiuser=$apiusr' --data-urlencode 'apikey=$apikey' --data-urlencode 'username=$apiusr' --data-urlencode 'ClientIp=$cliip' --data-urlencode 'SLD=$SLD' --data-urlencode 'TLD=$TLD'"
+    local HOSTS_URI="https://api.namecheap.com/xml.response"
 
     local num=0
 
     # get list of current records for domain
-    local records_list=`$CURL "https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.getHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD" | sed -En 's/<host (.*)/\1/p'`
+    local records_list=`$CURL "$HOSTS_URI""$POSTDATA"" --data-urlencode 'Command=namecheap.domains.dns.getHosts'" | sed -En 's/<host (.*)/\1/p'`
 
     # create $RECORDS_BACKUP directory if it doesn't yet exist
     mkdir -p $RECORDS_BACKUP
@@ -20,6 +20,7 @@ function deploy_challenge {
     #    Namecheap's setHosts method requires ALL records to be posted.  Therefore, the required information for recreating ALL records
     #    is extracted.  In addition, to protect against unforeseen issues that may cause the setHosts method to err, this information is
     #    stored in the $RECORDS_BACKUP directory allowing easy reference if they need to be restored manually.
+    POSTDATA=$POSTDATA" --data-urlencode 'Command=namecheap.domains.dns.setHosts'"
     OLDIFS=$IFS
     while read -r current_record; do
         ((num++))
@@ -74,7 +75,7 @@ function deploy_challenge {
     done
     local items=$count
 
-    local command="$CURL --request POST $SETHOSTS_URI $POSTDATA 2>&1 > /dev/null"
+    local command="$CURL --request POST $HOSTS_URI $POSTDATA 2>&1 > /dev/null"
     eval $command
 
     # wait up to 30 minutes for DNS updates to be provisioned (check at 15 second intervals)
@@ -109,13 +110,13 @@ function clean_challenge {
     local SLD=`sed -E 's/(.*\.)*([^.]+)\..*/\2/' <<< "${FIRSTDOMAIN}"`
     local TLD=`sed -E 's/.*\.([^.]+)/\1/' <<< "${FIRSTDOMAIN}"`
 
-    local SETHOSTS_URI="'https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.setHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD'"
-    local POSTDATA=""
+    local POSTDATA=" --data-urlencode 'apiuser=$apiusr' --data-urlencode 'apikey=$apikey' --data-urlencode 'username=$apiusr' --data-urlencode 'ClientIp=$cliip' --data-urlencode 'SLD=$SLD' --data-urlencode 'TLD=$TLD'"
+    local HOSTS_URI="'https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.setHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD'"
 
     local num=0
 
     # get list of current records for domain
-    local records_list=`$CURL "https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.getHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD" | sed -En 's/<host (.*)/\1/p'`
+    local records_list=`$CURL "$HOSTS_URI""$POSTDATA"" --data-urlencode 'Command=namecheap.domains.dns.getHosts'" | sed -En 's/<host (.*)/\1/p'`
 
     # remove challenge records from list
     records_list=`sed '/acme-challenge/d' <<< "$records_list"`
@@ -124,6 +125,7 @@ function clean_challenge {
     #    Namecheap's setHosts method requires ALL records to be posted.  Therefore, the required information for recreating ALL records
     #    is extracted.  In addition, to protect against unforeseen issues that may cause the setHosts method to err, this information is
     #    stored in the $RECORDS_BACKUP allowing easy reference if they need to be restored manually.
+    POSTDATA=$POSTDATA" --data-urlencode 'Command=namecheap.domains.dns.setHosts'"
     OLDIFS=$IFS
     while read -r current_record; do
         ((num++))
@@ -146,7 +148,7 @@ function clean_challenge {
     done <<< "$records_list"
     IFS=$OLDIFS
 
-    local command="$CURL --request POST $SETHOSTS_URI $POSTDATA 2>&1 > /dev/null"
+    local command="$CURL --request POST $HOSTS_URI $POSTDATA 2>&1 > /dev/null"
     eval $command
 }
 
