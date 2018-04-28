@@ -5,13 +5,13 @@ function deploy_challenge {
     local SLD=`sed -E 's/(.*\.)*([^.]+)\..*/\2/' <<< "${FIRSTDOMAIN}"`
     local TLD=`sed -E 's/.*\.([^.]+)/\1/' <<< "${FIRSTDOMAIN}"`
 
-    local SETHOSTS_URI="'https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.setHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD'"
-    local POSTDATA=""
-    
+    local POSTDATA=" --data-urlencode 'apiuser=$apiusr' --data-urlencode 'apikey=$apikey' --data-urlencode 'username=$apiusr' --data-urlencode 'ClientIp=$cliip' --data-urlencode 'SLD=$SLD' --data-urlencode 'TLD=$TLD'"
+    local HOSTS_URI="https://api.namecheap.com/xml.response"
+
     local num=0
-    
+
     # get list of current records for domain
-    local records_list=`$CURL "https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.getHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD" | sed -En 's/<host (.*)/\1/p'`
+    local records_list=`$CURL "$HOSTS_URI""$POSTDATA"" --data-urlencode 'Command=namecheap.domains.dns.getHosts'" | sed -En 's/<host (.*)/\1/p'`
 
     # create $RECORDS_BACKUP directory if it doesn't yet exist
     mkdir -p $RECORDS_BACKUP
@@ -20,6 +20,7 @@ function deploy_challenge {
     #    Namecheap's setHosts method requires ALL records to be posted.  Therefore, the required information for recreating ALL records
     #    is extracted.  In addition, to protect against unforeseen issues that may cause the setHosts method to err, this information is
     #    stored in the $RECORDS_BACKUP directory allowing easy reference if they need to be restored manually.
+    POSTDATA=$POSTDATA" --data-urlencode 'Command=namecheap.domains.dns.setHosts'"
     OLDIFS=$IFS
     while read -r current_record; do
         ((num++))
@@ -44,44 +45,44 @@ function deploy_challenge {
 
     # add challenge records to post data
     local count=0
-    while (( "$#" >= 3 )); do 
+    while (( "$#" >= 3 )); do
         ((num++))
-        
+
         # DOMAIN
         #   The domain name (CN or subject alternative name) being validated.
-        DOMAIN="${1}"; shift 
+        DOMAIN="${1}"; shift
         # TOKEN_FILENAME
         #   The name of the file containing the token to be served for HTTP
         #   validation. Should be served by your web server as
         #   /.well-known/acme-challenge/${TOKEN_FILENAME}.
-        TOKEN_FILENAME="${1}"; shift 
+        TOKEN_FILENAME="${1}"; shift
         # TOKEN_VALUE
         #   The token value that needs to be served for validation. For DNS
         #   validation, this is what you want to put in the _acme-challenge
         #   TXT record. For HTTP validation it is the value that is expected
         #   be found in the $TOKEN_FILENAME file.
-        TOKEN_VALUE[$count]="${1}"; shift 
-        
+        TOKEN_VALUE[$count]="${1}"; shift
+
         SUB[$count]=`sed -E "s/$SLD.$TLD//" <<< "${DOMAIN}"`
         CHALLENGE_HOSTNAME=`sed -E "s/\.$//" <<< "${SUB[$count]}"`
-        
+
         POSTDATA=$POSTDATA" --data-urlencode 'hostname$num=_acme-challenge.${CHALLENGE_HOSTNAME}'"
         POSTDATA=$POSTDATA" --data-urlencode 'recordtype$num=TXT'"
         POSTDATA=$POSTDATA" --data-urlencode 'address$num=${TOKEN_VALUE[$count]}'"
         POSTDATA=$POSTDATA" --data-urlencode 'ttl$num=60'"
-        
+
         ((count++))
     done
     local items=$count
-    
-    local command="$CURL --request POST $SETHOSTS_URI $POSTDATA 2>&1 > /dev/null"
+
+    local command="$CURL --request POST $HOSTS_URI $POSTDATA 2>&1 > /dev/null"
     eval $command
-    
+
     # wait up to 30 minutes for DNS updates to be provisioned (check at 15 second intervals)
     timer=0
     count=0
     while [ $count -lt $items ]; do
-        until dig @8.8.8.8 txt "_acme-challenge.${SUB[$count]}$SLD.$TLD" | grep "${TOKEN_VALUE[$count]}" 2>&1 > /dev/null; do
+        until dig @1.1.1.1 txt "_acme-challenge.${SUB[$count]}$SLD.$TLD" | grep "${TOKEN_VALUE[$count]}" 2>&1 > /dev/null; do
             if [[ "$timer" -ge 1800 ]]; then
                 # time has exceeded 30 minutes
                 send_error $FIRSTDOMAIN
@@ -104,18 +105,18 @@ function clean_challenge {
     # files or DNS records that are no longer needed.
     #
     # The parameters are the same as for deploy_challenge.
-    
+
     local FIRSTDOMAIN="${1}"
     local SLD=`sed -E 's/(.*\.)*([^.]+)\..*/\2/' <<< "${FIRSTDOMAIN}"`
     local TLD=`sed -E 's/.*\.([^.]+)/\1/' <<< "${FIRSTDOMAIN}"`
 
-    local SETHOSTS_URI="'https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.setHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD'"
-    local POSTDATA=""
-    
+    local POSTDATA=" --data-urlencode 'apiuser=$apiusr' --data-urlencode 'apikey=$apikey' --data-urlencode 'username=$apiusr' --data-urlencode 'ClientIp=$cliip' --data-urlencode 'SLD=$SLD' --data-urlencode 'TLD=$TLD'"
+    local HOSTS_URI="'https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.setHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD'"
+
     local num=0
-    
+
     # get list of current records for domain
-    local records_list=`$CURL "https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.getHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD" | sed -En 's/<host (.*)/\1/p'`
+    local records_list=`$CURL "$HOSTS_URI""$POSTDATA"" --data-urlencode 'Command=namecheap.domains.dns.getHosts'" | sed -En 's/<host (.*)/\1/p'`
 
     # remove challenge records from list
     records_list=`sed '/acme-challenge/d' <<< "$records_list"`
@@ -124,6 +125,7 @@ function clean_challenge {
     #    Namecheap's setHosts method requires ALL records to be posted.  Therefore, the required information for recreating ALL records
     #    is extracted.  In addition, to protect against unforeseen issues that may cause the setHosts method to err, this information is
     #    stored in the $RECORDS_BACKUP allowing easy reference if they need to be restored manually.
+    POSTDATA=$POSTDATA" --data-urlencode 'Command=namecheap.domains.dns.setHosts'"
     OLDIFS=$IFS
     while read -r current_record; do
         ((num++))
@@ -145,8 +147,8 @@ function clean_challenge {
         done <<< "$record_params"
     done <<< "$records_list"
     IFS=$OLDIFS
-    
-    local command="$CURL --request POST $SETHOSTS_URI $POSTDATA 2>&1 > /dev/null"
+
+    local command="$CURL --request POST $HOSTS_URI $POSTDATA 2>&1 > /dev/null"
     eval $command
 }
 
@@ -171,7 +173,7 @@ function deploy_cert {
     #   The path of the file containing the intermediate certificate(s).
     # - TIMESTAMP
     #   Timestamp when the specified certificate was created.
-    
+
     echo "Deploying certificate for ${DOMAIN}..."
     # copy new certificate to /etc/pki/tls/certs folder
     cp "${CERTFILE}" "${DEPLOYED_CERTDIR}/${DOMAIN}.crt"
@@ -401,7 +403,7 @@ else
 fi
 
 # get this client's ip address
-cliip=`$CURL -s http://ipinfo.io/ip`
+cliip=`$CURL -s https://ifconfig.co`
 
 HANDLER="$1"; shift
 if [[ "${HANDLER}" =~ ^(deploy_challenge|clean_challenge|deploy_cert|unchanged_cert|invalid_challenge|request_failure|startup_hook|exit_hook)$ ]]; then
