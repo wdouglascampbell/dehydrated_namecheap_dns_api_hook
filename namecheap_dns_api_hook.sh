@@ -403,7 +403,7 @@ else
 fi
 
 # get this client's ip address
-cliip=`$CURL -s https://ifconfig.co`
+cliip=`$CURL -s https://v4.ifconfig.co/ip`
 
 HANDLER="$1"; shift
 if [[ "${HANDLER}" =~ ^(deploy_challenge|clean_challenge|deploy_cert|unchanged_cert|invalid_challenge|request_failure|startup_hook|exit_hook)$ ]]; then
