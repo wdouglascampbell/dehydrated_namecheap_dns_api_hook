@@ -111,7 +111,7 @@ function clean_challenge {
     local TLD=`sed -E 's/.*\.([^.]+)/\1/' <<< "${FIRSTDOMAIN}"`
 
     local POSTDATA=" --data-urlencode 'apiuser=$apiusr' --data-urlencode 'apikey=$apikey' --data-urlencode 'username=$apiusr' --data-urlencode 'ClientIp=$cliip' --data-urlencode 'SLD=$SLD' --data-urlencode 'TLD=$TLD'"
-    local HOSTS_URI="'https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.setHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD'"
+    local HOSTS_URI="https://api.namecheap.com/xml.response"
 
     local num=0
 
