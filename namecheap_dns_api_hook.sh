@@ -112,8 +112,7 @@ function clean_challenge {
     local TLD=`sed -E 's/.*\.([^.]+)/\1/' <<< "${FIRSTDOMAIN}"`
 
     local POSTDATA=" --data-urlencode apiuser=$apiusr --data-urlencode apikey=$apikey --data-urlencode username=$apiusr --data-urlencode ClientIp=$cliip --data-urlencode SLD=$SLD --data-urlencode TLD=$TLD"
-    local HOSTS_URI="https://api.namecheap.com/xml.response?apiuser=$apiusr&apikey=$apikey&username=$apiusr&Command=namecheap.domains.dns.setHosts&ClientIp=$cliip&SLD=$SLD&TLD=$TLD"
-
+    local HOSTS_URI="https://api.namecheap.com/xml.response"
     local num=0
 
     # get list of current records for domain
@@ -403,7 +402,7 @@ else
 fi
 
 # get this client's ip address
-cliip=`$CURL -s https://ifconfig.co`
+cliip=`$CURL -s https://v4.ifconfig.co/ip`
 
 HANDLER="$1"; shift
 if [[ "${HANDLER}" =~ ^(deploy_challenge|clean_challenge|deploy_cert|unchanged_cert|invalid_challenge|request_failure|startup_hook|exit_hook)$ ]]; then
