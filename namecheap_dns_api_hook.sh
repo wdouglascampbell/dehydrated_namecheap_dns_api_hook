@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-#set -x
 
 function deploy_challenge {
     local FIRSTDOMAIN="${1}"
@@ -83,7 +82,7 @@ function deploy_challenge {
     timer=0
     count=0
     while [ $count -lt $items ]; do
-        until dig @1.1.1.1 txt "_acme-challenge.${SUB[$count]}$SLD.$TLD" | grep "${TOKEN_VALUE[$count]}" 2>&1 > /dev/null; do
+        until dig @1.1.1.1 txt "_acme-challenge.${SUB[$count]}$SLD.$TLD" | grep -e "${TOKEN_VALUE[$count]}" 2>&1 > /dev/null; do
             if [[ "$timer" -ge 1800 ]]; then
                 # time has exceeded 30 minutes
                 send_error $FIRSTDOMAIN
