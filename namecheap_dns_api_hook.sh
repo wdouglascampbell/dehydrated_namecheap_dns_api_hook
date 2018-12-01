@@ -191,7 +191,7 @@ function deploy_cert {
 
     # reload services
     echo " + Reloading Services"
-    "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/reload_services.sh"
+    "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/reload_services.sh" "$@"
 
     # send email notification
     send_notification $DOMAIN
