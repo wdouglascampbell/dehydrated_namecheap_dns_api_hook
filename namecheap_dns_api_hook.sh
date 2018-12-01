@@ -276,6 +276,7 @@ function load_config() {
     MAIL_METHOD=SENDMAIL
     SMTP_DOMAIN=localhost
     SMTP_SERVER=
+    SMTP_PORT=25
 
     # Check if config file exists
     if [[ ! -f "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/config" ]]; then
@@ -329,7 +330,7 @@ IFS='
 '
 
         # send notification email
-        exec 1<>/dev/tcp/$SMTP_SERVER/25
+        exec 1<>/dev/tcp/$SMTP_SERVER/$SMTP_PORT
         declare -a b=($a)
         for x in "${b[@]}"
         do
@@ -381,7 +382,7 @@ IFS='
 '
 
         # send notification email
-        exec 1<>/dev/tcp/$SMTP_SERVER/25
+        exec 1<>/dev/tcp/$SMTP_SERVER/$SMTP_PORT
         declare -a b=($a)
         for x in "${b[@]}"
         do

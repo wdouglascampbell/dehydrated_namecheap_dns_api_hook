@@ -31,3 +31,4 @@
 # SMTP options 
 #SMTP_DOMAIN=localhost
 #SMTP_SERVER=
+#SMTP_PORT=25
