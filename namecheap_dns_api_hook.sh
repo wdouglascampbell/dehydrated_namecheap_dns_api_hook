@@ -395,10 +395,9 @@ IFS='
 # load config values
 load_config
 
+CURL="curl ${CURL_OPTS} -s"
 if [[ "${DEBUG}" == "yes" ]]; then
-    CURL="/usr/bin/curl -sv"
-else
-    CURL="/usr/bin/curl -s"
+    CURL="$CURL -v"
 fi
 
 # get this client's ip address
