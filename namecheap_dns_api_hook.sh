@@ -268,6 +268,7 @@ function load_config() {
     apiusr=
     apikey=
     DEBUG=no
+    CURL_OPTS=
     RECORDS_BACKUP=${BASEDIR}/records_backup
     SENDER="sender@example.com"
     RECIPIENT="recipient@example.com"
@@ -395,10 +396,9 @@ IFS='
 # load config values
 load_config
 
+CURL="curl ${CURL_OPTS} -s"
 if [[ "${DEBUG}" == "yes" ]]; then
-    CURL="/usr/bin/curl -sv"
-else
-    CURL="/usr/bin/curl -s"
+    CURL="$CURL -v"
 fi
 
 # get this client's ip address
