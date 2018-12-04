@@ -12,6 +12,9 @@
 # Debugging (yes/no)
 #DEBUG=no
 
+# Extra options passed to the curl binary (default: <unset>)
+#CURL_OPTS=
+
 # Records backup locaiton
 #RECORDS_BACKUP=${BASEDIR}/records_backup
 

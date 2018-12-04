@@ -268,6 +268,7 @@ function load_config() {
     apiusr=
     apikey=
     DEBUG=no
+    CURL_OPTS=
     RECORDS_BACKUP=${BASEDIR}/records_backup
     SENDER="sender@example.com"
     RECIPIENT="recipient@example.com"
