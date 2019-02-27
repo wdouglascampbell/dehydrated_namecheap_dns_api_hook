@@ -5,13 +5,20 @@ function deploy_challenge {
     local SLD=`sed -E 's/(.*\.)*([^.]+)\..*/\2/' <<< "${FIRSTDOMAIN}"`
     local TLD=`sed -E 's/.*\.([^.]+)/\1/' <<< "${FIRSTDOMAIN}"`
 
-    local POSTDATA=" --data-urlencode apiuser=$apiusr --data-urlencode apikey=$apikey --data-urlencode username=$apiusr --data-urlencode ClientIp=$cliip --data-urlencode SLD=$SLD --data-urlencode TLD=$TLD"
+    local POSTDATA=( "--data-urlencode" "apiuser=${apiusr}"
+                      "--data-urlencode" "apikey=${apikey}"
+                      "--data-urlencode" "username=${apiusr}"
+                      "--data-urlencode" "ClientIp=${cliip}"
+                      "--data-urlencode" "SLD=${SLD}"
+                      "--data-urlencode" "TLD=${TLD}"
+                    )
     local HOSTS_URI="https://api.namecheap.com/xml.response"
 
     local num=0
 
     # get list of current records for domain
-    local records_list=`$CURL $POSTDATA --data-urlencode 'Command=namecheap.domains.dns.getHosts' "$HOSTS_URI" | sed -En 's/<host (.*)/\1/p'`
+    local GET_HOSTS=( "--data-urlencode" "Command=namecheap.domains.dns.getHosts" )
+    local records_list=`$CURL "${POSTDATA[@]}" "${GET_HOSTS[@]}" "${HOSTS_URI}" | sed -En 's/<host (.*)/\1/p'`
 
     # create $RECORDS_BACKUP directory if it doesn't yet exist
     mkdir -p $RECORDS_BACKUP
@@ -20,27 +27,31 @@ function deploy_challenge {
     #    Namecheap's setHosts method requires ALL records to be posted.  Therefore, the required information for recreating ALL records
     #    is extracted.  In addition, to protect against unforeseen issues that may cause the setHosts method to err, this information is
     #    stored in the $RECORDS_BACKUP directory allowing easy reference if they need to be restored manually.
-    POSTDATA=$POSTDATA" --data-urlencode Command=namecheap.domains.dns.setHosts"
+    POSTDATA+=( "--data-urlencode" "Command=namecheap.domains.dns.setHosts" )
     OLDIFS="$IFS"
     while read -r current_record; do
         ((num++))
         # extract record attributes and create comma-separate string
-        record_params=`sed -E 's/^[^"]*"|"[^"]*$//g; s/"[^"]+"/,/g; s/ +/ /g' <<< "$current_record" | tee "${RECORDS_BACKUP}/${FIRSTDOMAIN}_${num}_record.txt"`
+        record_params=`sed -E 's/^[^"]*"|"[^"]*$//g; s/"[^"]+"/,/g; s/ +/ /g' <<< "${current_record}" | tee "${RECORDS_BACKUP}/${FIRSTDOMAIN}_${num}_record.txt"`
         while IFS=, read -r hostid hostname recordtype address mxpref ttl associatedapptitle friendlyname isactive isddnsenabled; do
-            if [[ "$recordtype" = "MX" ]]; then
-                POSTDATA=$POSTDATA" --data-urlencode hostname$num=$hostname"
-                POSTDATA=$POSTDATA" --data-urlencode recordtype$num=$recordtype"
-                POSTDATA=$POSTDATA" --data-urlencode address$num=$address"
-                POSTDATA=$POSTDATA" --data-urlencode mxpref$num=$mxpref"
-                POSTDATA=$POSTDATA" --data-urlencode ttl$num=$ttl"
+            if [[ "${recordtype}" = "MX" ]]; then
+                POSTDATA+=(
+                            "--data-urlencode" "hostname${num}=${hostname}"
+                            "--data-urlencode" "recordtype${num}=${recordtype}"
+                            "--data-urlencode" "address${num}=${address}"
+                            "--data-urlencode" "mxpref${num}=${mxpref}"
+                            "--data-urlencode" "ttl${num}=${ttl}"
+                          )
             else
-                POSTDATA=$POSTDATA" --data-urlencode hostname$num=$hostname"
-                POSTDATA=$POSTDATA" --data-urlencode recordtype$num=$recordtype"
-                POSTDATA=$POSTDATA" --data-urlencode address$num=$address"
-                POSTDATA=$POSTDATA" --data-urlencode ttl$num=$ttl"
+                POSTDATA+=(
+                            "--data-urlencode" "hostname${num}=${hostname}"
+                            "--data-urlencode" "recordtype${num}=${recordtype}"
+                            "--data-urlencode" "address${num}=${address}"
+                            "--data-urlencode" "ttl${num}=${ttl}"
+                          )
             fi
-        done <<< "$record_params"
-    done <<< "$records_list"
+        done <<< "${record_params}"
+    done <<< "${records_list}"
     IFS="$OLDIFS"
 
     # add challenge records to post data
@@ -66,17 +77,17 @@ function deploy_challenge {
         SUB[$count]=`sed -E "s/$SLD.$TLD//" <<< "${DOMAIN}"`
         CHALLENGE_HOSTNAME=`sed -E "s/\.$//" <<< "${SUB[$count]}"`
 
-        POSTDATA=$POSTDATA" --data-urlencode hostname$num=_acme-challenge.${CHALLENGE_HOSTNAME}"
-        POSTDATA=$POSTDATA" --data-urlencode recordtype$num=TXT"
-        POSTDATA=$POSTDATA" --data-urlencode address$num=${TOKEN_VALUE[$count]}"
-        POSTDATA=$POSTDATA" --data-urlencode ttl$num=60"
-
+        POSTDATA+=(
+                    "--data-urlencode" "hostname${num}=_acme-challenge.${CHALLENGE_HOSTNAME}"
+                    "--data-urlencode" "recordtype${num}=TXT"
+                    "--data-urlencode" "address${num}=${TOKEN_VALUE[$count]}"
+                    "--data-urlencode" "ttl${num}=60"
+                  )
         ((count++))
     done
     local items=$count
 
-    $CURL --request POST  $POSTDATA "$HOSTS_URI" 2>&1 > /dev/null
-    
+    $CURL --request POST "${POSTDATA[@]}" "${HOSTS_URI}" 2>&1 >/dev/null
 
     # wait up to 30 minutes for DNS updates to be provisioned (check at 15 second intervals)
     timer=0
@@ -110,44 +121,55 @@ function clean_challenge {
     local SLD=`sed -E 's/(.*\.)*([^.]+)\..*/\2/' <<< "${FIRSTDOMAIN}"`
     local TLD=`sed -E 's/.*\.([^.]+)/\1/' <<< "${FIRSTDOMAIN}"`
 
-    local POSTDATA=" --data-urlencode apiuser=$apiusr --data-urlencode apikey=$apikey --data-urlencode username=$apiusr --data-urlencode ClientIp=$cliip --data-urlencode SLD=$SLD --data-urlencode TLD=$TLD"
+    local POSTDATA=( "--data-urlencode" "apiuser=${apiusr}"
+                      "--data-urlencode" "apikey=${apikey}"
+                      "--data-urlencode" "username=${apiusr}"
+                      "--data-urlencode" "ClientIp=${cliip}"
+                      "--data-urlencode" "SLD=${SLD}"
+                      "--data-urlencode" "TLD=${TLD}"
+                    )
     local HOSTS_URI="https://api.namecheap.com/xml.response"
     local num=0
 
     # get list of current records for domain
-    local records_list=`$CURL $POSTDATA --data-urlencode 'Command=namecheap.domains.dns.getHosts' "$HOSTS_URI" | sed -En 's/<host (.*)/\1/p'`
+    local GET_HOSTS=( "--data-urlencode" "Command=namecheap.domains.dns.getHosts" )
+    local records_list=`$CURL "${POSTDATA[@]}" "${GET_HOSTS[@]}" "${HOSTS_URI}" | sed -En 's/<host (.*)/\1/p'`
 
     # remove challenge records from list
-    records_list=`sed '/acme-challenge/d' <<< "$records_list"`
+    records_list=`sed '/acme-challenge/d' <<< "${records_list}"`
 
     # parse and store current records
     #    Namecheap's setHosts method requires ALL records to be posted.  Therefore, the required information for recreating ALL records
     #    is extracted.  In addition, to protect against unforeseen issues that may cause the setHosts method to err, this information is
     #    stored in the $RECORDS_BACKUP allowing easy reference if they need to be restored manually.
-    POSTDATA=$POSTDATA" --data-urlencode Command=namecheap.domains.dns.setHosts"
+    POSTDATA+=( "--data-urlencode" "Command=namecheap.domains.dns.setHosts" )
     OLDIFS="$IFS"
     while read -r current_record; do
         ((num++))
         # extract record attributes and create comma-separate string
-        record_params=`sed -E 's/^[^"]*"|"[^"]*$//g; s/"[^"]+"/,/g; s/ +/ /g' <<< "$current_record" | tee "${RECORDS_BACKUP}/${FIRSTDOMAIN}_${num}_record.txt"`
+        record_params=`sed -E 's/^[^"]*"|"[^"]*$//g; s/"[^"]+"/,/g; s/ +/ /g' <<< "${current_record}" | tee "${RECORDS_BACKUP}/${FIRSTDOMAIN}_${num}_record.txt"`
         while IFS=, read -r hostid hostname recordtype address mxpref ttl associatedapptitle friendlyname isactive isddnsenabled; do
             if [[ "$recordtype" = "MX" ]]; then
-                POSTDATA=$POSTDATA" --data-urlencode hostname$num=$hostname"
-                POSTDATA=$POSTDATA" --data-urlencode recordtype$num=$recordtype"
-                POSTDATA=$POSTDATA" --data-urlencode address$num=$address"
-                POSTDATA=$POSTDATA" --data-urlencode mxpref$num=$mxpref"
-                POSTDATA=$POSTDATA" --data-urlencode ttl$num=$ttl"
+                POSTDATA+=(
+                            "--data-urlencode" "hostname${num}=${hostname}"
+                            "--data-urlencode" "recordtype${num}=${recordtype}"
+                            "--data-urlencode" "address${num}=${address}"
+                            "--data-urlencode" "mxpref${num}=${mxpref}"
+                            "--data-urlencode" "ttl${num}=${ttl}"
+                          )
             else
-                POSTDATA=$POSTDATA" --data-urlencode hostname$num=$hostname"
-                POSTDATA=$POSTDATA" --data-urlencode recordtype$num=$recordtype"
-                POSTDATA=$POSTDATA" --data-urlencode address$num=$address"
-                POSTDATA=$POSTDATA" --data-urlencode ttl$num=$ttl"
+                POSTDATA+=(
+                            "--data-urlencode" "hostname${num}=${hostname}"
+                            "--data-urlencode" "recordtype${num}=${recordtype}"
+                            "--data-urlencode" "address${num}=${address}"
+                            "--data-urlencode" "ttl${num}=${ttl}"
+                          )
             fi
-        done <<< "$record_params"
-    done <<< "$records_list"
+        done <<< "${record_params}"
+    done <<< "${records_list}"
     IFS="$OLDIFS"
 
-    $CURL --request POST $POSTDATA "$HOSTS_URI" 2>&1 > /dev/null
+    $CURL --request POST "${POSTDATA[@]}" "${HOSTS_URI}" 2>&1 >/dev/null
 }
 
 function deploy_cert {
