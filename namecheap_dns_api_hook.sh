@@ -87,15 +87,30 @@ function deploy_challenge {
     done
     local items=$count
 
-    $CURL --request POST "${POSTDATA[@]}" "${HOSTS_URI}" 2>&1 >/dev/null
+    api_return=`$CURL -s --request POST "${POSTDATA[@]}" "${HOSTS_URI}"`
+    echo ${api_return} | grep -qi 'Status="OK"'
+    if [[ $? != 0 ]]; then
+      echo "ERROR: Post to API failed: ${api_return}"
+      return 1
+    fi
 
-    # wait up to 30 minutes for DNS updates to be provisioned (check at 15 second intervals)
+    # get nameservers for domain
+    IFS=$'\n' read -r -d '' -a nameservers < <( dig @1.1.1.1 +short ns $SLD.$TLD && printf '\0' )
+
+    # wait up to 2 minutes for DNS updates to be provisioned (check at 15 second intervals)
     timer=0
     count=0
     while [ $count -lt $items ]; do
-        until dig @1.1.1.1 txt "_acme-challenge.${SUB[$count]}$SLD.$TLD" | grep -e "${TOKEN_VALUE[$count]}" 2>&1 > /dev/null; do
-            if [[ "$timer" -ge 1800 ]]; then
-                # time has exceeded 30 minutes
+        # check for DNS propagation
+       while true; do
+            for ns in ${nameservers[@]}; do
+                dig @${ns} txt "_acme-challenge.${SUB[$count]%.}.$SLD.$TLD" | grep -qe "${TOKEN_VALUE[$count]}"
+                if [[ $? == 0 ]]; then
+                    break 2
+                fi
+            done
+            if [[ "$timer" -ge 120 ]]; then
+                # time has exceeded 2 minutes
                 send_error $FIRSTDOMAIN
                 break
             else
@@ -415,6 +430,31 @@ IFS='
     fi
 }
 
+# Test an IP address for validity:
+# Usage:
+#      valid_ip IP_ADDRESS
+#      if [[ $? -eq 0 ]]; then echo good; else echo bad; fi
+#   OR
+#      if valid_ip IP_ADDRESS; then echo good; else echo bad; fi
+#
+# *** taken from: https://www.linuxjournal.com/content/validating-ip-address-bash-script
+function valid_ip()
+{
+    local  ip=$1
+    local  stat=1
+
+    if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        OIFS=$IFS
+        IFS='.'
+        ip=($ip)
+        IFS=$OIFS
+        [[ ${ip[0]} -le 255 && ${ip[1]} -le 255 \
+            && ${ip[2]} -le 255 && ${ip[3]} -le 255 ]]
+        stat=$?
+    fi
+    return $stat
+}
+
 # load config values
 load_config
 
@@ -425,6 +465,10 @@ fi
 
 # get this client's ip address
 cliip=`$CURL -s https://v4.ifconfig.co/ip`
+while ! valid_ip $cliip; do
+  sleep 2
+  cliip=`$CURL -s https://v4.ifconfig.co/ip`
+done
 
 HANDLER="$1"; shift
 if [[ "${HANDLER}" =~ ^(deploy_challenge|clean_challenge|deploy_cert|unchanged_cert|invalid_challenge|request_failure|startup_hook|exit_hook)$ ]]; then
