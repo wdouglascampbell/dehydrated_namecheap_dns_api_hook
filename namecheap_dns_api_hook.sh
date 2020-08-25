@@ -78,7 +78,7 @@ function deploy_challenge {
         CHALLENGE_HOSTNAME=`sed -E "s/\.$//" <<< "${SUB[$count]}"`
 
         POSTDATA+=(
-                    "--data-urlencode" "hostname${num}=_acme-challenge.${CHALLENGE_HOSTNAME}"
+                    "--data-urlencode" "hostname${num}=_acme-challenge${CHALLENGE_HOSTNAME:+.$CHALLENGE_HOSTNAME}"
                     "--data-urlencode" "recordtype${num}=TXT"
                     "--data-urlencode" "address${num}=${TOKEN_VALUE[$count]}"
                     "--data-urlencode" "ttl${num}=60"
@@ -104,7 +104,7 @@ function deploy_challenge {
         # check for DNS propagation
        while true; do
             for ns in ${nameservers[@]}; do
-                dig @${ns} txt "_acme-challenge.${SUB[$count]%.}.$SLD.$TLD" | grep -qe "${TOKEN_VALUE[$count]}"
+                dig @${ns} txt "_acme-challenge${SUB[$count]:+.${SUB[$count]%.}}.$SLD.$TLD" | grep -qe "${TOKEN_VALUE[$count]}"
                 if [[ $? == 0 ]]; then
                     break 2
                 fi
