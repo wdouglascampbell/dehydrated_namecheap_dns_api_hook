@@ -121,6 +121,7 @@ function deploy_challenge {
         done
         ((count++))
     done
+    return 0
 }
 
 function clean_challenge {
@@ -232,6 +233,7 @@ function deploy_cert {
 
     # send email notification
     send_notification $DOMAIN
+    return 0
 }
 
 function unchanged_cert {
