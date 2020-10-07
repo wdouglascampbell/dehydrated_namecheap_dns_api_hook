@@ -114,7 +114,7 @@ function deploy_challenge {
             if [[ "$timer" -ge 120 ]]; then
                 # time has exceeded 2 minutes
                 send_error $FIRSTDOMAIN
-                break
+                return 1
             else
                 echo " + DNS not propagated. Waiting 15s for record creation and replication... Total time elapsed has been $timer seconds."
                 ((timer+=15))
