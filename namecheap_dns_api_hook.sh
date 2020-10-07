@@ -28,31 +28,33 @@ function deploy_challenge {
     #    is extracted.  In addition, to protect against unforeseen issues that may cause the setHosts method to err, this information is
     #    stored in the $RECORDS_BACKUP directory allowing easy reference if they need to be restored manually.
     POSTDATA+=( "--data-urlencode" "Command=namecheap.domains.dns.setHosts" )
-    OLDIFS="$IFS"
-    while read -r current_record; do
-        ((num++))
-        # extract record attributes and create comma-separate string
-        record_params=`sed -E 's/^[^"]*"|"[^"]*$//g; s/"[^"]+"/,/g; s/ +/ /g' <<< "${current_record}" | tee "${RECORDS_BACKUP}/${FIRSTDOMAIN}_${num}_record.txt"`
-        while IFS=, read -r hostid hostname recordtype address mxpref ttl associatedapptitle friendlyname isactive isddnsenabled; do
-            if [[ "${recordtype}" = "MX" ]]; then
-                POSTDATA+=(
-                            "--data-urlencode" "hostname${num}=${hostname}"
-                            "--data-urlencode" "recordtype${num}=${recordtype}"
-                            "--data-urlencode" "address${num}=${address}"
-                            "--data-urlencode" "mxpref${num}=${mxpref}"
-                            "--data-urlencode" "ttl${num}=${ttl}"
-                          )
-            else
-                POSTDATA+=(
-                            "--data-urlencode" "hostname${num}=${hostname}"
-                            "--data-urlencode" "recordtype${num}=${recordtype}"
-                            "--data-urlencode" "address${num}=${address}"
-                            "--data-urlencode" "ttl${num}=${ttl}"
-                          )
-            fi
-        done <<< "${record_params}"
-    done <<< "${records_list}"
-    IFS="$OLDIFS"
+    if [[ "$records_list" != "" ]]; then
+        OLDIFS="$IFS"
+        while read -r current_record; do
+            ((num++))
+            # extract record attributes and create comma-separate string
+            record_params=`sed -E 's/^[^"]*"|"[^"]*$//g; s/"[^"]+"/,/g; s/ +/ /g' <<< "${current_record}" | tee "${RECORDS_BACKUP}/${FIRSTDOMAIN}_${num}_record.txt"`
+            while IFS=, read -r hostid hostname recordtype address mxpref ttl associatedapptitle friendlyname isactive isddnsenabled; do
+                if [[ "${recordtype}" = "MX" ]]; then
+                    POSTDATA+=(
+                                "--data-urlencode" "hostname${num}=${hostname}"
+                                "--data-urlencode" "recordtype${num}=${recordtype}"
+                                "--data-urlencode" "address${num}=${address}"
+                                "--data-urlencode" "mxpref${num}=${mxpref}"
+                                "--data-urlencode" "ttl${num}=${ttl}"
+                              )
+                else
+                    POSTDATA+=(
+                                "--data-urlencode" "hostname${num}=${hostname}"
+                                "--data-urlencode" "recordtype${num}=${recordtype}"
+                                "--data-urlencode" "address${num}=${address}"
+                                "--data-urlencode" "ttl${num}=${ttl}"
+                              )
+                fi
+            done <<< "${record_params}"
+        done <<< "${records_list}"
+        IFS="$OLDIFS"
+    fi
 
     # add challenge records to post data
     local count=0
