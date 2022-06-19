@@ -44,12 +44,22 @@ function deploy_challenge {
                                 "--data-urlencode" "ttl${num}=${ttl}"
                               )
                 else
-                    POSTDATA+=(
-                                "--data-urlencode" "hostname${num}=${hostname}"
-                                "--data-urlencode" "recordtype${num}=${recordtype}"
-                                "--data-urlencode" "address${num}=${address}"
-                                "--data-urlencode" "ttl${num}=${ttl}"
-                              )
+                    if [[ "${recordtype}" = "CAA" ]]; then
+                        corrected_address=`echo $address | sed 's/&quot;/"/g'`
+                        POSTDATA+=(
+                                    "--data-urlencode" "hostname${num}=${hostname}"
+                                    "--data-urlencode" "recordtype${num}=${recordtype}"
+                                    "--data-urlencode" "address${num}=${corrected_address}"
+                                    "--data-urlencode" "ttl${num}=${ttl}"
+                                  )
+                    else
+                        POSTDATA+=(
+                                    "--data-urlencode" "hostname${num}=${hostname}"
+                                    "--data-urlencode" "recordtype${num}=${recordtype}"
+                                    "--data-urlencode" "address${num}=${address}"
+                                    "--data-urlencode" "ttl${num}=${ttl}"
+                                  )
+                    fi
                 fi
             done <<< "${record_params}"
         done <<< "${records_list}"
