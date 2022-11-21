@@ -478,10 +478,10 @@ if [[ "${DEBUG}" == "yes" ]]; then
 fi
 
 # get this client's ip address
-cliip=`$CURL -s https://v4.ifconfig.co/ip`
+cliip=`$CURL -s https://icanhazip.com`
 while ! valid_ip $cliip; do
   sleep 2
-  cliip=`$CURL -s https://v4.ifconfig.co/ip`
+  cliip=`$CURL -s https://icanhazip.com`
 done
 
 HANDLER="$1"; shift
