@@ -385,7 +385,7 @@ IFS=$'\n'
         declare -a b=($a)
         for x in "${b[@]}"
         do
-            echo "$x\r"
+            echo -e "$x\r"
             sleep .1
         done
     fi
@@ -436,7 +436,7 @@ IFS=$'\n'
         declare -a b=($a)
         for x in "${b[@]}"
         do
-            echo "$x\r"
+            echo -e "$x\r"
             sleep .1
         done
     fi
