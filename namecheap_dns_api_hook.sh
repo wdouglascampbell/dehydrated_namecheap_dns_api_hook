@@ -380,14 +380,26 @@ EOF
 )
 IFS=$'\n'
 
+        # open TCP connection on FD 3
+        exec 3<>/dev/tcp/$SMTP_SERVER/$SMTP_PORT
+
+        # read 220 banner first
+        read -r banner <&3
+
+        # optional: log or debug
+        # echo "SMTP banner: $banner" >&2
+
         # send notification email
-        exec 1<>/dev/tcp/$SMTP_SERVER/$SMTP_PORT
         declare -a b=($a)
         for x in "${b[@]}"
         do
-            echo -e "$x\r"
+            echo -e "$x\r" >&3
             sleep .1
         done
+
+        # close FD 3
+        exec 3>&-
+        exec 3<&-
     fi
 }
 
@@ -431,14 +443,26 @@ EOF
 )
 IFS=$'\n'
 
+        # open TCP connection on FD 3
+        exec 3<>/dev/tcp/$SMTP_SERVER/$SMTP_PORT
+
+        # read 220 banner first
+        read -r banner <&3
+
+        # optional: log or debug
+        # echo "SMTP banner: $banner" >&2
+
         # send notification email
-        exec 1<>/dev/tcp/$SMTP_SERVER/$SMTP_PORT
         declare -a b=($a)
         for x in "${b[@]}"
         do
-            echo -e "$x\r"
+            echo -e "$x\r" >&3
             sleep .1
         done
+
+        # close FD 3
+        exec 3>&-
+        exec 3<&-
     fi
 }
 
