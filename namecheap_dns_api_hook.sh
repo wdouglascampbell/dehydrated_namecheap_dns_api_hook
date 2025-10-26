@@ -378,15 +378,14 @@ QUIT
 .
 EOF
 )
-IFS='
-'
+IFS=$'\n'
 
         # send notification email
         exec 1<>/dev/tcp/$SMTP_SERVER/$SMTP_PORT
         declare -a b=($a)
         for x in "${b[@]}"
         do
-            echo $x
+            echo "$x\r"
             sleep .1
         done
     fi
@@ -430,15 +429,14 @@ QUIT
 .
 EOF
 )
-IFS='
-'
+IFS=$'\n'
 
         # send notification email
         exec 1<>/dev/tcp/$SMTP_SERVER/$SMTP_PORT
         declare -a b=($a)
         for x in "${b[@]}"
         do
-            echo $x
+            echo "$x\r"
             sleep .1
         done
     fi
