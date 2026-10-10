@@ -106,33 +106,52 @@ function deploy_challenge {
       return 1
     fi
 
-    # get nameservers for domain
-    IFS=$'\n' read -r -d '' -a nameservers < <( dig @1.1.1.1 +short ns $SLD.$TLD && printf '\0' )
+    # get nameservers for domain. Retry, and fall back to a second resolver, so
+    # a lookup that times out can't leave dig's error text in the list; keep
+    # only lines that look like hostnames.
+    local nameservers=() try resolver
+    for try in 1 2 3; do
+        for resolver in 1.1.1.1 8.8.8.8; do
+            mapfile -t nameservers < <( dig @${resolver} +short +time=5 +tries=2 ns "$SLD.$TLD" | grep -E '^[A-Za-z0-9.-]+\.$' )
+            [[ ${#nameservers[@]} -gt 0 ]] && break 2
+        done
+        sleep 5
+    done
+    if [[ ${#nameservers[@]} -eq 0 ]]; then
+        echo "ERROR: could not look up the nameservers for $SLD.$TLD"
+        send_error $FIRSTDOMAIN
+        return 1
+    fi
 
-    # wait up to 2 minutes for DNS updates to be provisioned (check at 15 second intervals)
-    timer=0
-    count=0
-    while [ $count -lt $items ]; do
-        # check for DNS propagation
-       while true; do
-            for ns in ${nameservers[@]}; do
-                dig @${ns} txt "_acme-challenge${SUB[$count]:+.${SUB[$count]%.}}.$SLD.$TLD" | grep -qe "${TOKEN_VALUE[$count]}"
-                if [[ $? == 0 ]]; then
-                    break 2
-                fi
+    # wait until EVERY nameserver returns each challenge record (check at 15
+    # second intervals, up to PROPAGATION_TIMEOUT seconds). The CA may ask any
+    # of them, and one that lags answers NXDOMAIN and fails the challenge.
+    local timer=0 fqdn ns pending
+    for (( count = 0; count < items; count++ )); do
+        fqdn="_acme-challenge${SUB[$count]:+.${SUB[$count]%.}}.$SLD.$TLD"
+        while true; do
+            pending=()
+            for ns in "${nameservers[@]}"; do
+                dig @"${ns}" +short +time=5 +tries=2 txt "$fqdn" | grep -qF -- "${TOKEN_VALUE[$count]}" || pending+=("${ns%.}")
             done
-            if [[ "$timer" -ge 120 ]]; then
-                # time has exceeded 2 minutes
+            [[ ${#pending[@]} -eq 0 ]] && break
+            if [[ "$timer" -ge "$PROPAGATION_TIMEOUT" ]]; then
+                echo "ERROR: $fqdn not found on ${pending[*]} after $timer seconds"
                 send_error $FIRSTDOMAIN
                 return 1
-            else
-                echo " + DNS not propagated. Waiting 15s for record creation and replication... Total time elapsed has been $timer seconds."
-                ((timer+=15))
-                sleep 15
             fi
+            echo " + DNS not propagated to ${pending[*]}. Waiting 15s for record creation and replication... Total time elapsed has been $timer seconds."
+            ((timer+=15))
+            sleep 15
         done
-        ((count++))
     done
+
+    # each nameserver name is itself a group of servers, and the CA checks from
+    # several places, so give the record a little longer to reach them all.
+    if [[ "$PROPAGATION_SETTLE" -gt 0 ]]; then
+        echo " + Record found on all nameservers. Waiting ${PROPAGATION_SETTLE}s for it to settle..."
+        sleep "$PROPAGATION_SETTLE"
+    fi
     return 0
 }
 
@@ -329,6 +348,8 @@ function load_config() {
     SMTP_DOMAIN=localhost
     SMTP_SERVER=
     SMTP_PORT=25
+    PROPAGATION_TIMEOUT=300
+    PROPAGATION_SETTLE=30
 
     # Check if config file exists
     if [[ ! -f "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/config" ]]; then

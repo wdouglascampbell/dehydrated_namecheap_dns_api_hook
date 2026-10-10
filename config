@@ -35,3 +35,8 @@
 #SMTP_DOMAIN=localhost
 #SMTP_SERVER=
 #SMTP_PORT=25
+
+# DNS propagation: the most seconds to wait for the challenge record to reach
+# every nameserver, then extra seconds to wait once it has
+#PROPAGATION_TIMEOUT=300
+#PROPAGATION_SETTLE=30
